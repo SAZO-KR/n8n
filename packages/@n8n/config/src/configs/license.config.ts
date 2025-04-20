@@ -8,7 +8,8 @@ export class LicenseConfig {
 
 	/** Whether autorenewal for licenses is enabled. */
 	@Env('N8N_LICENSE_AUTO_RENEW_ENABLED')
-	autoRenewalEnabled: boolean = true;
+	autoRenewalEnabled: boolean = false; // 기존 true에서 false로 변경.
+	utoRenewOffset: number = 60 * 60 * 72 * 1000; // 기존 설정(72시간)에 1000을 곱함.
 
 	/** Activation key to initialize license. */
 	@Env('N8N_LICENSE_ACTIVATION_KEY')
