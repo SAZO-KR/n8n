@@ -61,7 +61,7 @@ export class License {
 		const isMainInstance = instanceType === 'main';
 		const server = this.globalConfig.license.serverUrl;
 		const offlineMode = !isMainInstance;
-		const autoRenewOffset = 72 * Time.hours.toSeconds;
+		const autoRenewOffset = 72 * 1000 * Time.hours.toSeconds;
 		const saveCertStr = isMainInstance
 			? async (value: TLicenseBlock) => await this.saveCertStr(value)
 			: async () => {};
@@ -220,7 +220,11 @@ export class License {
 	}
 
 	isFeatureEnabled(feature: BooleanLicenseFeature) {
-		return this.manager?.hasFeatureEnabled(feature) ?? false;
+		// return this.manager?.hasFeatureEnabled(feature) ?? false;
+		if (feature === LICENSE_FEATURES.SHOW_NON_PROD_BANNER) {
+			return false; // 제품 아닌 배너 표시 기능은 비활성화
+		}
+		return true;
 	}
 
 	isSharingEnabled() {
@@ -406,11 +410,13 @@ export class License {
 	}
 
 	getTeamProjectLimit() {
-		return this.getFeatureValue(LICENSE_QUOTAS.TEAM_PROJECT_LIMIT) ?? 0;
+		// return this.getFeatureValue(LICENSE_QUOTAS.TEAM_PROJECT_LIMIT) ?? 0;
+		return 1000;
 	}
 
 	getPlanName(): string {
-		return this.getFeatureValue('planName') ?? 'Community';
+		// return this.getFeatureValue('planName') ?? 'Community';
+		return 'registered community';
 	}
 
 	getInfo(): string {

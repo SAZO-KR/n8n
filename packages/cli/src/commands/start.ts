@@ -166,7 +166,8 @@ export class Start extends BaseCommand {
 	async init() {
 		await this.initCrashJournal();
 
-		this.logger.info('Initializing n8n process');
+		// this.logger.info('Initializing n8n process');
+		this.logger.info('Initializing n8n process [SAZO]');
 		if (config.getEnv('executions.mode') === 'queue') {
 			const scopedLogger = this.logger.scoped('scaling');
 			scopedLogger.debug('Starting main instance in scaling mode');
