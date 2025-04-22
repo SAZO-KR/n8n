@@ -55,3 +55,34 @@ getPlanName(): string {
 // src/commands/start.ts
 this.logger.info('Initializing n8n process [SAZO]');
 ```
+
+# 이미지 업데이트 방법
+## 1. Build
+
+`docker build --platform=linux/amd64 -t n8n-sazo -f docker/images/n8n-sazo/Dockerfile .`
+- amd64로 빌드해야합니다
+
+## 2. Upload image
+1. Tagging
+`docker tag n8n-sazo:latest asia-northeast1-docker.pkg.dev/sazoshop/n8n-sazo/n8n-sazo:{버전명}`
+> latest가 아니라 버전명을 사용해도 됩니다. 이 경우 아래 특정 버전으로 변경하는 방법을 참고하면 됩니다.
+
+2. Upload 
+`docker push asia-northeast1-docker.pkg.dev/sazoshop/n8n-sazo/n8n-sazo:{버전명}`
+
+업로드가 되면 알아서 업데이트가 됩니다. 
+
+## 3. image 버전을 특정 버전으로 변경 (필요시)
+1. k8s/deployment.yaml 파일에서 template.spec.containers.image 를 수정
+2. `kubectl apply -f k8s/deployment.yaml` 커맨드로 배포
+3. `kubectl get pods -n n8n` 로 적용이 완료되었는 지 확인
+
+# 기타 커맨드
+
+## 클러스터 접속 
+`gcloud container clusters get-credentials n8n-cluster-1 --region us-central1 --project sazoshop`
+
+# 기타 정보 
+## 이미지 저장소 (GCP Artifact Registory)
+
+https://console.cloud.google.com/artifacts/docker/sazoshop/asia-northeast1/n8n-sazo/n8n-sazo?authuser=0&inv=1&invt=Abp8pA&project=sazoshop
