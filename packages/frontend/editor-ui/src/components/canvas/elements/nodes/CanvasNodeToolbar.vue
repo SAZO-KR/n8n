@@ -1,9 +1,12 @@
 <script setup lang="ts">
 import { computed, ref, useCssModule } from 'vue';
-import { useI18n } from '@/composables/useI18n';
+import { useI18n } from '@n8n/i18n';
 import { useCanvasNode } from '@/composables/useCanvasNode';
 import { CanvasNodeRenderType } from '@/types';
 import { useCanvas } from '@/composables/useCanvas';
+import { useNodeTypesStore } from '@/stores/nodeTypes.store';
+import { useWorkflowsStore } from '@/stores/workflows.store';
+import { useExperimentalNdvStore } from '../../experimental/experimentalNdv.store';
 
 const emit = defineEmits<{
 	delete: [];
@@ -11,6 +14,7 @@ const emit = defineEmits<{
 	run: [];
 	update: [parameters: Record<string, unknown>];
 	'open:contextmenu': [event: MouseEvent];
+	focus: [id: string];
 }>();
 
 const props = defineProps<{
@@ -20,8 +24,15 @@ const props = defineProps<{
 const $style = useCssModule();
 const i18n = useI18n();
 
-const { isExecuting } = useCanvas();
-const { isDisabled, render } = useCanvasNode();
+const { isExecuting, isExperimentalNdvActive } = useCanvas();
+const { isDisabled, render, name } = useCanvasNode();
+
+const workflowsStore = useWorkflowsStore();
+const nodeTypesStore = useNodeTypesStore();
+const experimentalNdvStore = useExperimentalNdvStore();
+
+const node = computed(() => (name.value ? workflowsStore.getNodeByName(name.value) : null));
+const isToolNode = computed(() => !!node.value && nodeTypesStore.isToolNode(node.value.type));
 
 const nodeDisabledTitle = computed(() => {
 	return isDisabled.value ? i18n.baseText('node.enable') : i18n.baseText('node.disable');
@@ -34,6 +45,7 @@ const classes = computed(() => ({
 	[$style.canvasNodeToolbar]: true,
 	[$style.readOnly]: props.readOnly,
 	[$style.forceVisible]: isHovered.value || isStickyColorSelectorOpen.value,
+	[$style.isExperimentalNdvActive]: isExperimentalNdvActive.value,
 }));
 
 const isExecuteNodeVisible = computed(() => {
@@ -41,7 +53,7 @@ const isExecuteNodeVisible = computed(() => {
 		!props.readOnly &&
 		render.value.type === CanvasNodeRenderType.Default &&
 		'configuration' in render.value.options &&
-		!render.value.options.configuration
+		(!render.value.options.configuration || isToolNode.value)
 	);
 });
 
@@ -50,6 +62,13 @@ const isDisableNodeVisible = computed(() => {
 });
 
 const isDeleteNodeVisible = computed(() => !props.readOnly);
+
+const isFocusNodeVisible = computed(
+	() =>
+		experimentalNdvStore.isEnabled &&
+		node.value !== null &&
+		experimentalNdvStore.collapsedNodes[node.value.id] !== false,
+);
 
 const isStickyNoteChangeColorVisible = computed(
 	() => !props.readOnly && render.value.type === CanvasNodeRenderType.StickyNote,
@@ -84,6 +103,12 @@ function onMouseEnter() {
 function onMouseLeave() {
 	isHovered.value = false;
 }
+
+function onFocusNode() {
+	if (node.value) {
+		emit('focus', node.value.id);
+	}
+}
 </script>
 
 <template>
@@ -95,17 +120,17 @@ function onMouseLeave() {
 	>
 		<div :class="$style.canvasNodeToolbarItems">
 			<N8nTooltip
+				v-if="isExecuteNodeVisible"
 				placement="top"
 				:disabled="!isDisabled"
 				:content="i18n.baseText('ndv.execute.deactivated')"
 			>
 				<N8nIconButton
-					v-if="isExecuteNodeVisible"
 					data-test-id="execute-node-button"
 					type="tertiary"
 					text
 					size="small"
-					icon="play"
+					icon="node-play"
 					:disabled="isExecuting || isDisabled"
 					:title="i18n.baseText('node.testStep')"
 					@click="executeNode"
@@ -117,7 +142,7 @@ function onMouseLeave() {
 				type="tertiary"
 				text
 				size="small"
-				icon="power-off"
+				icon="node-power"
 				:title="nodeDisabledTitle"
 				@click="onToggleNode"
 			/>
@@ -127,9 +152,17 @@ function onMouseLeave() {
 				type="tertiary"
 				size="small"
 				text
-				icon="trash"
+				icon="node-trash"
 				:title="i18n.baseText('node.delete')"
 				@click="onDeleteNode"
+			/>
+			<N8nIconButton
+				v-if="isFocusNodeVisible"
+				type="tertiary"
+				size="small"
+				text
+				icon="crosshair"
+				@click="onFocusNode"
 			/>
 			<CanvasNodeStickyColorSelector
 				v-if="isStickyNoteChangeColorVisible"
@@ -141,7 +174,7 @@ function onMouseLeave() {
 				type="tertiary"
 				size="small"
 				text
-				icon="ellipsis-h"
+				icon="node-ellipsis"
 				@click="onOpenContextMenu"
 			/>
 		</div>
@@ -154,6 +187,11 @@ function onMouseLeave() {
 	display: flex;
 	justify-content: flex-end;
 	width: 100%;
+
+	&.isExperimentalNdvActive {
+		justify-content: center;
+		padding-bottom: var(--spacing-3xs);
+	}
 }
 
 .canvasNodeToolbarItems {

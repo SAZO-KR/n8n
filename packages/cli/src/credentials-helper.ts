@@ -2,9 +2,11 @@
 /* eslint-disable @typescript-eslint/no-unsafe-member-access */
 /* eslint-disable @typescript-eslint/no-unsafe-assignment */
 /* eslint-disable @typescript-eslint/no-unsafe-return */
+import type { CredentialsEntity, ICredentialsDb } from '@n8n/db';
+import { CredentialsRepository, SharedCredentialsRepository } from '@n8n/db';
 import { Service } from '@n8n/di';
 // eslint-disable-next-line n8n-local-rules/misplaced-n8n-typeorm-import
-import { In } from '@n8n/typeorm';
+import { EntityNotFoundError, In } from '@n8n/typeorm';
 import { Credentials, getAdditionalKeys } from 'n8n-core';
 import type {
 	ICredentialDataDecryptedObject,
@@ -26,14 +28,16 @@ import type {
 	IExecuteData,
 	IDataObject,
 } from 'n8n-workflow';
-import { ICredentialsHelper, NodeHelpers, Workflow, UnexpectedError } from 'n8n-workflow';
+import {
+	ICredentialsHelper,
+	NodeHelpers,
+	Workflow,
+	UnexpectedError,
+	isExpression,
+} from 'n8n-workflow';
 
 import { CredentialTypes } from '@/credential-types';
 import { CredentialsOverwrites } from '@/credentials-overwrites';
-import type { CredentialsEntity } from '@/databases/entities/credentials-entity';
-import { CredentialsRepository } from '@/databases/repositories/credentials.repository';
-import { SharedCredentialsRepository } from '@/databases/repositories/shared-credentials.repository';
-import type { ICredentialsDb } from '@/interfaces';
 
 import { RESPONSE_ERROR_MESSAGES } from './constants';
 import { CredentialNotFoundError } from './errors/credential-not-found.error';
@@ -210,7 +214,7 @@ export class CredentialsHelper extends ICredentialsHelper {
 		workflow: Workflow,
 		node: INode,
 	): string {
-		if (typeof parameterValue !== 'string' || parameterValue.charAt(0) !== '=') {
+		if (!isExpression(parameterValue)) {
 			return parameterValue;
 		}
 
@@ -259,7 +263,11 @@ export class CredentialsHelper extends ICredentialsHelper {
 				type,
 			});
 		} catch (error) {
-			throw new CredentialNotFoundError(nodeCredential.id, type);
+			if (error instanceof EntityNotFoundError) {
+				throw new CredentialNotFoundError(nodeCredential.id, type);
+			}
+
+			throw error;
 		}
 
 		return new Credentials(
@@ -328,8 +336,6 @@ export class CredentialsHelper extends ICredentialsHelper {
 		if (raw === true) {
 			return decryptedDataOriginal;
 		}
-
-		await additionalData?.secretsHelpers?.waitForInit();
 
 		return await this.applyDefaultsAndOverwrites(
 			additionalData,
@@ -447,6 +453,33 @@ export class CredentialsHelper extends ICredentialsHelper {
 			type,
 		};
 
+		// @ts-ignore CAT-957
+		await this.credentialsRepository.update(findQuery, newCredentialsData);
+	}
+
+	/**
+	 * Updates credential's oauth token data in the database
+	 */
+	async updateCredentialsOauthTokenData(
+		nodeCredentials: INodeCredentialsDetails,
+		type: string,
+		data: ICredentialDataDecryptedObject,
+	): Promise<void> {
+		const credentials = await this.getCredentials(nodeCredentials, type);
+
+		credentials.updateData({ oauthTokenData: data.oauthTokenData });
+		const newCredentialsData = credentials.getDataToSave() as ICredentialsDb;
+
+		// Add special database related data
+		newCredentialsData.updatedAt = new Date();
+
+		// Save the credentials in DB
+		const findQuery = {
+			id: credentials.id,
+			type,
+		};
+
+		// @ts-ignore CAT-957
 		await this.credentialsRepository.update(findQuery, newCredentialsData);
 	}
 

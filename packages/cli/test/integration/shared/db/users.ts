@@ -1,18 +1,14 @@
+import { randomEmail, randomName, randomValidPassword } from '@n8n/backend-test-utils';
+import { AuthIdentity, AuthIdentityRepository, UserRepository } from '@n8n/db';
+import { type User } from '@n8n/db';
 import { Container } from '@n8n/di';
 import type { ApiKeyScope, GlobalRole } from '@n8n/permissions';
+import { getApiKeyScopesForRole } from '@n8n/permissions';
 import { hash } from 'bcryptjs';
 
-import { AuthIdentity } from '@/databases/entities/auth-identity';
-import { type User } from '@/databases/entities/user';
-import { AuthIdentityRepository } from '@/databases/repositories/auth-identity.repository';
-import { AuthUserRepository } from '@/databases/repositories/auth-user.repository';
-import { UserRepository } from '@/databases/repositories/user.repository';
 import { MfaService } from '@/mfa/mfa.service';
 import { TOTPService } from '@/mfa/totp.service';
-import { getApiKeyScopesForRole } from '@/public-api/permissions.ee';
 import { PublicApiKeyService } from '@/services/public-api-key.service';
-
-import { randomEmail, randomName, randomValidPassword } from '../random';
 
 type ApiKeyOptions = {
 	expiresAt?: number | null;
@@ -22,12 +18,25 @@ type ApiKeyOptions = {
 // pre-computed bcrypt hash for the string 'password', using `await hash('password', 10)`
 const passwordHash = '$2a$10$njedH7S6V5898mj6p0Jr..IGY9Ms.qNwR7RbSzzX9yubJocKfvGGK';
 
+// A null password value means that no password will be set in the database
+// rendering the user as pending, an undefined value means we default
+// to 'password' as password.
+// Also we are hashing the plaintext password here if necessary
+async function handlePasswordSetup(password: string | null | undefined): Promise<string | null> {
+	if (password === undefined) {
+		return passwordHash;
+	} else if (password === null) {
+		return null;
+	}
+	return await hash(password, 1);
+}
+
 /** Store a new user object, defaulting to a `member` */
 export async function newUser(attributes: Partial<User> = {}): Promise<User> {
 	const { email, password, firstName, lastName, role, ...rest } = attributes;
 	return Container.get(UserRepository).create({
 		email: email ?? randomEmail(),
-		password: password ? await hash(password, 1) : passwordHash,
+		password: await handlePasswordSetup(password),
 		firstName: firstName ?? randomName(),
 		lastName: lastName ?? randomName(),
 		role: role ?? 'global:member',
@@ -39,7 +48,6 @@ export async function newUser(attributes: Partial<User> = {}): Promise<User> {
 export async function createUser(attributes: Partial<User> = {}): Promise<User> {
 	const userInstance = await newUser(attributes);
 	const { user } = await Container.get(UserRepository).createUserWithProject(userInstance);
-	user.computeIsOwner();
 	return user;
 }
 
@@ -74,10 +82,13 @@ export async function createUserWithMfaEnabled(
 		email,
 	});
 
-	await Container.get(AuthUserRepository).update(user.id, {
+	await Container.get(UserRepository).update(user.id, {
 		mfaSecret: encryptedSecret,
 		mfaRecoveryCodes: encryptedRecoveryCodes,
 	});
+
+	user.mfaSecret = encryptedSecret;
+	user.mfaRecoveryCodes = encryptedRecoveryCodes;
 
 	return {
 		user,

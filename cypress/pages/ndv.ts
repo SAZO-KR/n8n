@@ -150,8 +150,7 @@ export class NDV extends BasePage {
 		nodeRunErrorDescription: () => cy.getByTestId('node-error-description'),
 		fixedCollectionParameter: (paramName: string) =>
 			cy.getByTestId(`fixed-collection-${paramName}`),
-		schemaViewNode: () => cy.getByTestId('run-data-schema-node'),
-		schemaViewNodeName: () => cy.getByTestId('run-data-schema-node-name'),
+		schemaViewNode: () => cy.getByTestId('run-data-schema-header'),
 		expressionExpanders: () => cy.getByTestId('expander'),
 		expressionModalOutput: () => cy.getByTestId('expression-modal-output'),
 		floatingNodes: () => cy.getByTestId('floating-node'),
@@ -306,7 +305,7 @@ export class NDV extends BasePage {
 			this.actions.typeIntoParameterInput(fieldName, invalidExpression ?? "{{ $('unknown')", {
 				parseSpecialCharSequences: false,
 			});
-			this.actions.validateExpressionPreview(fieldName, "node doesn't exist");
+			this.actions.validateExpressionPreview(fieldName, 'No path back to node');
 		},
 		openSettings: () => {
 			this.getters.nodeSettingsTab().click();
