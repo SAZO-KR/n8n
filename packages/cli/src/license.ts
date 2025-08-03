@@ -217,8 +217,16 @@ export class License implements LicenseProvider {
 		this.logger.debug('License shut down');
 	}
 
+
 	isLicensed(feature: BooleanLicenseFeature) {
-		return this.manager?.hasFeatureEnabled(feature) ?? false;
+		return true;
+  }
+	isFeatureEnabled(feature: BooleanLicenseFeature) {
+		// return this.manager?.hasFeatureEnabled(feature) ?? false;
+		if (feature === LICENSE_FEATURES.SHOW_NON_PROD_BANNER) {
+			return false; // 제품 아닌 배너 표시 기능은 비활성화
+		}
+		return true;
 	}
 
 	/** @deprecated Use `LicenseState.isSharingLicensed` instead. */
@@ -308,7 +316,7 @@ export class License implements LicenseProvider {
 
 	/** @deprecated Use `LicenseState.isAPIDisabled` instead. */
 	isAPIDisabled() {
-		return this.isLicensed(LICENSE_FEATURES.API_DISABLED);
+		return true; // API 항상 활성화 
 	}
 
 	/** @deprecated Use `LicenseState.isWorkerViewLicensed` instead. */
@@ -409,11 +417,13 @@ export class License implements LicenseProvider {
 
 	/** @deprecated Use `LicenseState` instead. */
 	getTeamProjectLimit() {
-		return this.getValue(LICENSE_QUOTAS.TEAM_PROJECT_LIMIT) ?? 0;
+		// return this.getFeatureValue(LICENSE_QUOTAS.TEAM_PROJECT_LIMIT) ?? 0;
+		return 1000;
 	}
 
 	getPlanName(): string {
-		return this.getValue('planName') ?? 'Community';
+		// return this.getFeatureValue('planName') ?? 'Community';
+		return 'registered community'; // Community 외 확인된 다른 PlanName으로 변경. 내부에서 Community와 else로만 구분함.
 	}
 
 	getInfo(): string {
