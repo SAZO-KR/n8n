@@ -28,9 +28,10 @@ export class LicenseState {
 	// --------------------
 
 	isLicensed(feature: BooleanLicenseFeature) {
-		this.assertProvider();
+		// this.assertProvider();
 
-		return this.licenseProvider.isLicensed(feature);
+		// return this.licenseProvider.isLicensed(feature);
+		return true;
 	}
 
 	getValue<T extends keyof FeatureReturnType>(feature: T): FeatureReturnType[T] {
@@ -44,7 +45,8 @@ export class LicenseState {
 	// --------------------
 
 	isSharingLicensed() {
-		return this.isLicensed('feat:sharing');
+		// return this.isLicensed('feat:sharing');
+		return true;
 	}
 
 	isLogStreamingLicensed() {
@@ -120,7 +122,8 @@ export class LicenseState {
 	}
 
 	isAPIDisabled() {
-		return this.isLicensed('feat:apiDisabled');
+		// return this.isLicensed('feat:apiDisabled');
+		return false;
 	}
 
 	isWorkerViewLicensed() {
@@ -164,15 +167,19 @@ export class LicenseState {
 	// --------------------
 
 	getMaxUsers() {
-		return this.getValue('quota:users') ?? UNLIMITED_LICENSE_QUOTA;
+		// return this.getValue('quota:users') ?? UNLIMITED_LICENSE_QUOTA;
+		// return this.getValue('quota:users') ?? UNLIMITED_LICENSE_QUOTA;
+		return UNLIMITED_LICENSE_QUOTA;
 	}
 
 	getMaxActiveWorkflows() {
-		return this.getValue('quota:activeWorkflows') ?? UNLIMITED_LICENSE_QUOTA;
+		// return this.getValue('quota:activeWorkflows') ?? UNLIMITED_LICENSE_QUOTA;
+		return UNLIMITED_LICENSE_QUOTA;
 	}
 
 	getMaxVariables() {
-		return this.getValue('quota:maxVariables') ?? UNLIMITED_LICENSE_QUOTA;
+		// return this.getValue('quota:maxVariables') ?? UNLIMITED_LICENSE_QUOTA;
+		return UNLIMITED_LICENSE_QUOTA;
 	}
 
 	getMaxAiCredits() {
@@ -180,7 +187,8 @@ export class LicenseState {
 	}
 
 	getWorkflowHistoryPruneQuota() {
-		return this.getValue('quota:workflowHistoryPrune') ?? UNLIMITED_LICENSE_QUOTA;
+		// return this.getValue('quota:workflowHistoryPrune') ?? UNLIMITED_LICENSE_QUOTA;
+		return UNLIMITED_LICENSE_QUOTA;
 	}
 
 	getInsightsMaxHistory() {

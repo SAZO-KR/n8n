@@ -67,3 +67,11 @@ getPlanName(): string {
 }
 ```
 
+
+# 업데이트
+
+## 도커 빌드 
+```docker build -t n8n-sazo:{버전명} -f docker/images/n8n-sazo/Dockerfile .```
+
+## 태그설정
+docker tag n8n-sazo:{버전명} asia-northeast1-docker.pkg.dev/sazoshop/n8n-sazo/n8n-sazo:{버전명}

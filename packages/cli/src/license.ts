@@ -217,10 +217,9 @@ export class License implements LicenseProvider {
 		this.logger.debug('License shut down');
 	}
 
-
 	isLicensed(feature: BooleanLicenseFeature) {
 		return true;
-  }
+	}
 	isFeatureEnabled(feature: BooleanLicenseFeature) {
 		// return this.manager?.hasFeatureEnabled(feature) ?? false;
 		if (feature === LICENSE_FEATURES.SHOW_NON_PROD_BANNER) {
@@ -316,7 +315,7 @@ export class License implements LicenseProvider {
 
 	/** @deprecated Use `LicenseState.isAPIDisabled` instead. */
 	isAPIDisabled() {
-		return true; // API 항상 활성화 
+		return true; // API 항상 활성화
 	}
 
 	/** @deprecated Use `LicenseState.isWorkerViewLicensed` instead. */

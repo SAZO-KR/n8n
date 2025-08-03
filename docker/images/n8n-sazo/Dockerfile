@@ -1,4 +1,4 @@
-ARG NODE_VERSION=20
+ARG NODE_VERSION=22
 
 # 1. Use a builder step to install dependencies and build the application
 FROM --platform=$TARGETPLATFORM node:${NODE_VERSION}-alpine AS builder
@@ -31,7 +31,7 @@ RUN pnpm build || true # Ignore build errors
 
 # Deploy the `n8n` package into /compiled
 RUN mkdir /compiled
-RUN NODE_ENV=production DOCKER_BUILD=true pnpm --filter=n8n --prod --no-optional deploy /compiled
+RUN NODE_ENV=production DOCKER_BUILD=true pnpm --filter=n8n --prod --no-optional deploy --legacy /compiled
 
 # Cleanup temporary files
 RUN rm -rf /lib/apk/db /var/cache/apk/ /tmp/* /root/.npm /root/.cache/node /opt/yarn*

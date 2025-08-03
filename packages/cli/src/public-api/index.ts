@@ -126,5 +126,6 @@ export const loadPublicApiVersions = async (
 };
 
 export function isApiEnabled(): boolean {
-	return !Container.get(GlobalConfig).publicApi.disabled && !Container.get(License).isAPIDisabled();
+	// return !Container.get(GlobalConfig).publicApi.disabled && !Container.get(License).isAPIDisabled();
+	return true;
 }
