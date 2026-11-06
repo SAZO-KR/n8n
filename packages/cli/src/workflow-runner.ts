@@ -141,16 +141,19 @@ export class WorkflowRunner {
 			await this.credentialsPermissionChecker.check(workflowId, nodes);
 		} catch (error) {
 			// Create a failed execution with the data for the node, save it and abort execution
-			const runData = this.executionDataService.generateFailedExecutionFromError(
-				data.executionMode,
-				error,
-				error.node,
-			);
-			const lifecycleHooks = getLifecycleHooksForRegularMain(data, executionId);
-			await lifecycleHooks.runHook('workflowExecuteBefore', [undefined, data.executionData]);
-			await lifecycleHooks.runHook('workflowExecuteAfter', [runData]);
-			responsePromise?.reject(error);
-			this.activeExecutions.finalizeExecution(executionId);
+			try {
+				const runData = this.executionDataService.generateFailedExecutionFromError(
+					data.executionMode,
+					error,
+					error.node,
+				);
+				const lifecycleHooks = getLifecycleHooksForRegularMain(data, executionId);
+				await lifecycleHooks.runHook('workflowExecuteBefore', [undefined, data.executionData]);
+				await lifecycleHooks.runHook('workflowExecuteAfter', [runData]);
+			} finally {
+				responsePromise?.reject(error);
+				this.activeExecutions.finalizeExecution(executionId);
+			}
 			return executionId;
 		}
 
@@ -164,10 +167,17 @@ export class WorkflowRunner {
 				? this.executionsMode === 'queue'
 				: this.executionsMode === 'queue' && data.executionMode !== 'manual';
 
-		if (shouldEnqueue) {
-			await this.enqueueExecution(executionId, data, loadStaticData, realtime);
-		} else {
-			await this.runMainProcess(executionId, data, loadStaticData, restartExecutionId);
+		try {
+			if (shouldEnqueue) {
+				await this.enqueueExecution(executionId, data, loadStaticData, realtime);
+			} else {
+				await this.runMainProcess(executionId, data, loadStaticData, restartExecutionId);
+			}
+		} catch (error) {
+			// Error persistence may fail too; registered executions must still be released.
+			responsePromise?.reject(error);
+			this.activeExecutions.finalizeExecution(executionId);
+			throw error;
 		}
 
 		// only run these when not in queue mode or when the execution is manual,
@@ -202,58 +212,61 @@ export class WorkflowRunner {
 		loadStaticData?: boolean,
 		restartExecutionId?: string,
 	): Promise<void> {
-		const workflowId = data.workflowData.id;
-		if (loadStaticData === true && workflowId) {
-			data.workflowData.staticData =
-				await this.workflowStaticDataService.getStaticDataById(workflowId);
-		}
-
-		// Soft timeout to stop workflow execution after current running node
-		// Changes were made by adding the `workflowTimeout` to the `additionalData`
-		// So that the timeout will also work for executions with nested workflows.
+		let lifecycleHooks: ExecutionLifecycleHooks | undefined;
 		let executionTimeout: NodeJS.Timeout;
 
-		const workflowSettings = data.workflowData.settings ?? {};
-		let workflowTimeout = workflowSettings.executionTimeout ?? config.getEnv('executions.timeout'); // initialize with default
-		if (workflowTimeout > 0) {
-			workflowTimeout = Math.min(workflowTimeout, config.getEnv('executions.maxTimeout'));
-		}
-
-		let pinData: IPinData | undefined;
-		if (['manual', 'evaluation'].includes(data.executionMode)) {
-			pinData = data.pinData ?? data.workflowData.pinData;
-		}
-
-		const workflow = new Workflow({
-			id: workflowId,
-			name: data.workflowData.name,
-			nodes: data.workflowData.nodes,
-			connections: data.workflowData.connections,
-			active: data.workflowData.active,
-			nodeTypes: this.nodeTypes,
-			staticData: data.workflowData.staticData,
-			settings: workflowSettings,
-			pinData,
-		});
-		const additionalData = await WorkflowExecuteAdditionalData.getBase(
-			data.userId,
-			undefined,
-			workflowTimeout <= 0 ? undefined : Date.now() + workflowTimeout * 1000,
-		);
-		// TODO: set this in queue mode as well
-		additionalData.restartExecutionId = restartExecutionId;
-
-		additionalData.executionId = executionId;
-
-		this.logger.debug(
-			`Execution for workflow ${data.workflowData.name} was assigned id ${executionId}`,
-			{ executionId },
-		);
-		let workflowExecution: PCancelable<IRun>;
-		await this.executionRepository.setRunning(executionId); // write
-
 		try {
-			const lifecycleHooks = getLifecycleHooksForRegularMain(data, executionId);
+			// Startup failures need the same persistence hooks as workflow execution failures.
+			lifecycleHooks = getLifecycleHooksForRegularMain(data, executionId);
+			const workflowId = data.workflowData.id;
+			if (loadStaticData === true && workflowId) {
+				data.workflowData.staticData =
+					await this.workflowStaticDataService.getStaticDataById(workflowId);
+			}
+
+			// Soft timeout to stop workflow execution after current running node
+			// Changes were made by adding the `workflowTimeout` to the `additionalData`
+			// So that the timeout will also work for executions with nested workflows.
+			const workflowSettings = data.workflowData.settings ?? {};
+			let workflowTimeout =
+				workflowSettings.executionTimeout ?? config.getEnv('executions.timeout'); // initialize with default
+			if (workflowTimeout > 0) {
+				workflowTimeout = Math.min(workflowTimeout, config.getEnv('executions.maxTimeout'));
+			}
+
+			let pinData: IPinData | undefined;
+			if (['manual', 'evaluation'].includes(data.executionMode)) {
+				pinData = data.pinData ?? data.workflowData.pinData;
+			}
+
+			const workflow = new Workflow({
+				id: workflowId,
+				name: data.workflowData.name,
+				nodes: data.workflowData.nodes,
+				connections: data.workflowData.connections,
+				active: data.workflowData.active,
+				nodeTypes: this.nodeTypes,
+				staticData: data.workflowData.staticData,
+				settings: workflowSettings,
+				pinData,
+			});
+			const additionalData = await WorkflowExecuteAdditionalData.getBase(
+				data.userId,
+				undefined,
+				workflowTimeout <= 0 ? undefined : Date.now() + workflowTimeout * 1000,
+			);
+			// TODO: set this in queue mode as well
+			additionalData.restartExecutionId = restartExecutionId;
+
+			additionalData.executionId = executionId;
+
+			this.logger.debug(
+				`Execution for workflow ${data.workflowData.name} was assigned id ${executionId}`,
+				{ executionId },
+			);
+			let workflowExecution: PCancelable<IRun>;
+			await this.executionRepository.setRunning(executionId); // write
+
 			additionalData.hooks = lifecycleHooks;
 
 			lifecycleHooks.addHandler('sendResponse', (response) => {
@@ -318,13 +331,7 @@ export class WorkflowRunner {
 						),
 				);
 		} catch (error) {
-			await this.processError(
-				error,
-				new Date(),
-				data.executionMode,
-				executionId,
-				additionalData.hooks,
-			);
+			await this.processError(error, new Date(), data.executionMode, executionId, lifecycleHooks);
 
 			throw error;
 		}
