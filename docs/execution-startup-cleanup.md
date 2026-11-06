@@ -25,3 +25,37 @@ persistence can only complete when the database is available.
 - Existing successful, waiting, resumed, and cancelled execution behavior remains
   covered by the related execution tests.
 
+## PostgreSQL load verification
+
+Use a disposable local PostgreSQL server, with a pool of two and the default
+20-second connection timeout. The opt-in test runs 295 synthetic workflows in
+batches of five every two seconds, then exhausts both real pool connections.
+It checks both recovery before error persistence and continuing DB failure.
+
+From `packages/cli`, with the test server's connection variables configured:
+
+```sh
+DB_TYPE=postgresdb DB_POSTGRESDB_POOL_SIZE=2 pnpm exec jest \
+  --testRegex='postgres-startup.integration.ts$' --runInBand --no-coverage
+```
+
+The workflow executes two local nodes; it does not call external business
+services. A continuing DB outage can leave the persisted row running even
+though its in-memory execution and response promise are released.
+
+## Container build verification
+
+The source Dockerfile supports `BUILD_CONCURRENCY` (default 10, Turbo's default).
+For an amd64 build under emulation, use `--build-arg BUILD_CONCURRENCY=1` to avoid
+Turbo log-directory `EINTR` failures observed during concurrent package builds.
+The build step allows 6 GiB of V8 heap for the node-definition compiler worker,
+which exceeded the default heap during a clean amd64 build. These settings apply
+to the builder; the final runtime image does not inherit them.
+Manifest trimming uses Node's JSON parser instead of an optional `jq` binary,
+so a missing tool cannot silently replace the root manifest with an empty file.
+
+```sh
+docker build --platform=linux/amd64 --build-arg BUILD_CONCURRENCY=1 \
+  -t n8n-startup-test -f docker/images/n8n-custom/Dockerfile .
+```
+
